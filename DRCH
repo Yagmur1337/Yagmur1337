@@ -1,0 +1,1893 @@
+-- DISASTER ROBBERS - SERVER-SIDE EXPLOIT MENU
+-- Bu menü oyundaki sunucu tarafı güvenlik açıklarını test etmek için tasarlanmıştır
+-- Executor ile çalıştırın (Synapse X, Script-Ware, Krnl, etc.)
+
+local Players = game:GetService("Players")
+local UserInputService = game:GetService("UserInputService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local RunService = game:GetService("RunService")
+local Workspace = game:GetService("Workspace")
+local TweenService = game:GetService("TweenService")
+local HttpService = game:GetService("HttpService")
+
+local player = Players.LocalPlayer
+local character = player.Character or player.CharacterAdded:Wait()
+local humanoid = character:WaitForChild("Humanoid")
+local rootPart = character:WaitForChild("HumanoidRootPart")
+
+-- Character respawn handler - ölünce character'ı güncelle
+player.CharacterAdded:Connect(function(newChar)
+	character = newChar
+	humanoid = character:WaitForChild("Humanoid")
+	rootPart = character:WaitForChild("HumanoidRootPart")
+	print("[EXPLOIT] Character respawned! Updated references.")
+end)
+
+-- Remote Events
+local RemoteEvents = {
+	-- Heist Related
+	MoneyDepositUI = ReplicatedStorage:FindFirstChild("HeistsRelated") and ReplicatedStorage.HeistsRelated:FindFirstChild("MoneyDepositUIEvent"),
+	StealAnimated = ReplicatedStorage:FindFirstChild("HeistsRelated") and ReplicatedStorage.HeistsRelated:FindFirstChild("StealAnimatedEvent"),
+	
+	-- Bank
+	BankMinigame = ReplicatedStorage:FindFirstChild("BankStuff") and ReplicatedStorage.BankStuff:FindFirstChild("BankLobby_MinigameEvent"),
+	VaultDoor = ReplicatedStorage:FindFirstChild("BankStuff") and ReplicatedStorage.BankStuff:FindFirstChild("SmoothVaultDoorAnimation"),
+	
+	-- Vehicles
+	VehicleSpawn = ReplicatedStorage:FindFirstChild("Vehicles") and ReplicatedStorage.Vehicles:FindFirstChild("VehicleSpawnEvent"),
+	VehicleReset = ReplicatedStorage:FindFirstChild("Vehicles") and ReplicatedStorage.Vehicles:FindFirstChild("ResetVehicleEvent"),
+	VehicleDataCheck = ReplicatedStorage:FindFirstChild("Vehicles") and ReplicatedStorage.Vehicles:FindFirstChild("VehicleDataCheckFunction"),
+	VehicleCanDrive = ReplicatedStorage:FindFirstChild("Vehicles") and ReplicatedStorage.Vehicles:FindFirstChild("VehicleCanDriveCheckFunction"),
+	VehiclePurchase = ReplicatedStorage:FindFirstChild("Vehicles") and ReplicatedStorage.Vehicles:FindFirstChild("VehiclePurchaseFunction"),
+	
+	-- XP
+	XPOrbs = ReplicatedStorage:FindFirstChild("XPOrbs") and ReplicatedStorage.XPOrbs:FindFirstChild("XPOrbsRemoteEvent"),
+	
+	-- Doors
+	SecurityDoor = ReplicatedStorage:FindFirstChild("SecurityAreaDoor"),
+	SecurityDoors = ReplicatedStorage:FindFirstChild("SecurityAreaDoors"),
+	AskForDoor = ReplicatedStorage:FindFirstChild("AskForDoor"),
+	DoorOpener = ReplicatedStorage:FindFirstChild("DoorOpenerEvent"),
+}
+
+-- Exploit States
+local exploitStates = {
+	godMode = false,
+	infiniteJump = false,
+	noclip = false,
+	speedHack = false,
+	flyHack = false,
+	esp = false,
+	fullbright = false,
+	autoFarm = false,
+	autoRob = false,
+	autoCollectXP = false,
+	autoCollectMoney = false,
+	speedValue = 50,
+	jumpValue = 50,
+	flySpeed = 50,
+	originalWalkSpeed = 16,
+	originalJumpPower = 50
+}
+
+local flyConnection
+local noclipConnection
+local espFolder
+local autoFarmConnection
+local autoRobConnection
+local autoCollectConnection
+
+-- GUI Oluşturma
+local screenGui = Instance.new("ScreenGui")
+screenGui.Name = "ExploitTestMenu"
+screenGui.ResetOnSpawn = false
+screenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+
+local mainFrame = Instance.new("Frame")
+mainFrame.Name = "MainFrame"
+mainFrame.Size = UDim2.new(0, 480, 0, 520)
+mainFrame.Position = UDim2.new(0.5, -240, 0.5, -260)
+mainFrame.BackgroundColor3 = Color3.fromRGB(20, 20, 25)
+mainFrame.BorderSizePixel = 0
+mainFrame.Parent = screenGui
+
+local uiCorner = Instance.new("UICorner")
+uiCorner.CornerRadius = UDim.new(0, 10)
+uiCorner.Parent = mainFrame
+
+local uiStroke = Instance.new("UIStroke")
+uiStroke.Color = Color3.fromRGB(255, 50, 50)
+uiStroke.Thickness = 2
+uiStroke.Parent = mainFrame
+
+-- Başlık
+local title = Instance.new("TextLabel")
+title.Name = "Title"
+title.Size = UDim2.new(1, 0, 0, 45)
+title.BackgroundColor3 = Color3.fromRGB(255, 50, 50)
+title.BorderSizePixel = 0
+title.Font = Enum.Font.GothamBold
+title.Text = "🔓 DISASTER ROBBERS - EXPLOIT TEST MENU"
+title.TextColor3 = Color3.fromRGB(255, 255, 255)
+title.TextSize = 15
+title.Parent = mainFrame
+
+local titleCorner = Instance.new("UICorner")
+titleCorner.CornerRadius = UDim.new(0, 10)
+titleCorner.Parent = title
+
+-- Kapatma butonu
+local closeBtn = Instance.new("TextButton")
+closeBtn.Name = "CloseButton"
+closeBtn.Size = UDim2.new(0, 40, 0, 40)
+closeBtn.Position = UDim2.new(1, -45, 0, 5)
+closeBtn.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
+closeBtn.BorderSizePixel = 0
+closeBtn.Font = Enum.Font.GothamBold
+closeBtn.Text = "X"
+closeBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+closeBtn.TextSize = 18
+closeBtn.Parent = mainFrame
+
+local closeBtnCorner = Instance.new("UICorner")
+closeBtnCorner.CornerRadius = UDim.new(0, 8)
+closeBtnCorner.Parent = closeBtn
+
+-- Scroll Frame
+local scrollFrame = Instance.new("ScrollingFrame")
+scrollFrame.Name = "ScrollFrame"
+scrollFrame.Size = UDim2.new(1, -20, 1, -60)
+scrollFrame.Position = UDim2.new(0, 10, 0, 55)
+scrollFrame.BackgroundTransparency = 1
+scrollFrame.BorderSizePixel = 0
+scrollFrame.ScrollBarThickness = 6
+scrollFrame.CanvasSize = UDim2.new(0, 0, 0, 0)
+scrollFrame.Parent = mainFrame
+
+local listLayout = Instance.new("UIListLayout")
+listLayout.Padding = UDim.new(0, 8)
+listLayout.SortOrder = Enum.SortOrder.LayoutOrder
+listLayout.Parent = scrollFrame
+
+-- Auto-resize canvas
+listLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
+	scrollFrame.CanvasSize = UDim2.new(0, 0, 0, listLayout.AbsoluteContentSize.Y + 10)
+end)
+
+-- Utility Functions
+local function createButton(name, text, callback)
+	local button = Instance.new("TextButton")
+	button.Name = name
+	button.Size = UDim2.new(1, -10, 0, 40)
+	button.BackgroundColor3 = Color3.fromRGB(40, 40, 50)
+	button.BorderSizePixel = 0
+	button.Font = Enum.Font.Gotham
+	button.Text = text
+	button.TextColor3 = Color3.fromRGB(255, 255, 255)
+	button.TextSize = 14
+	button.Parent = scrollFrame
+	
+	local btnCorner = Instance.new("UICorner")
+	btnCorner.CornerRadius = UDim.new(0, 8)
+	btnCorner.Parent = button
+	
+	button.MouseButton1Click:Connect(callback)
+	
+	return button
+end
+
+local function createToggleButton(name, text, initialState, callback)
+	local currentState = initialState
+	local button = Instance.new("TextButton")
+	button.Name = name
+	button.Size = UDim2.new(1, -10, 0, 40)
+	button.BackgroundColor3 = currentState and Color3.fromRGB(50, 200, 50) or Color3.fromRGB(40, 40, 50)
+	button.BorderSizePixel = 0
+	button.Font = Enum.Font.Gotham
+	button.Text = text .. ": " .. (currentState and "ON" or "OFF")
+	button.TextColor3 = Color3.fromRGB(255, 255, 255)
+	button.TextSize = 14
+	button.Parent = scrollFrame
+	
+	local btnCorner = Instance.new("UICorner")
+	btnCorner.CornerRadius = UDim.new(0, 8)
+	btnCorner.Parent = button
+	
+	button.MouseButton1Click:Connect(function()
+		currentState = not currentState
+		button.Text = text .. ": " .. (currentState and "ON" or "OFF")
+		button.BackgroundColor3 = currentState and Color3.fromRGB(50, 200, 50) or Color3.fromRGB(40, 40, 50)
+		callback(currentState)
+	end)
+	
+	return button
+end
+
+local function createSlider(name, text, min, max, default, callback)
+	local container = Instance.new("Frame")
+	container.Name = name
+	container.Size = UDim2.new(1, -10, 0, 60)
+	container.BackgroundColor3 = Color3.fromRGB(40, 40, 50)
+	container.BorderSizePixel = 0
+	container.Parent = scrollFrame
+	
+	local containerCorner = Instance.new("UICorner")
+	containerCorner.CornerRadius = UDim.new(0, 8)
+	containerCorner.Parent = container
+	
+	local label = Instance.new("TextLabel")
+	label.Size = UDim2.new(1, -10, 0, 20)
+	label.Position = UDim2.new(0, 5, 0, 5)
+	label.BackgroundTransparency = 1
+	label.Font = Enum.Font.Gotham
+	label.Text = text .. ": " .. default
+	label.TextColor3 = Color3.fromRGB(255, 255, 255)
+	label.TextSize = 12
+	label.TextXAlignment = Enum.TextXAlignment.Left
+	label.Parent = container
+	
+	local slider = Instance.new("TextButton")
+	slider.Size = UDim2.new(1, -20, 0, 25)
+	slider.Position = UDim2.new(0, 10, 0, 30)
+	slider.BackgroundColor3 = Color3.fromRGB(60, 60, 70)
+	slider.BorderSizePixel = 0
+	slider.Text = ""
+	slider.Parent = container
+	
+	local sliderCorner = Instance.new("UICorner")
+	sliderCorner.CornerRadius = UDim.new(0, 6)
+	sliderCorner.Parent = slider
+	
+	local fill = Instance.new("Frame")
+	fill.Name = "Fill"
+	fill.Size = UDim2.new((default - min) / (max - min), 0, 1, 0)
+	fill.BackgroundColor3 = Color3.fromRGB(255, 50, 50)
+	fill.BorderSizePixel = 0
+	fill.Parent = slider
+	
+	local fillCorner = Instance.new("UICorner")
+	fillCorner.CornerRadius = UDim.new(0, 6)
+	fillCorner.Parent = fill
+	
+	local currentValue = default
+	
+	local function updateSlider(input)
+		local relativeX = math.clamp((input.Position.X - slider.AbsolutePosition.X) / slider.AbsoluteSize.X, 0, 1)
+		currentValue = math.floor(min + (max - min) * relativeX)
+		fill.Size = UDim2.new(relativeX, 0, 1, 0)
+		label.Text = text .. ": " .. currentValue
+		callback(currentValue)
+	end
+	
+	slider.InputBegan:Connect(function(input)
+		if input.UserInputType == Enum.UserInputType.MouseButton1 then
+			updateSlider(input)
+			local connection
+			connection = input.Changed:Connect(function()
+				if input.UserInputState == Enum.UserInputState.End then
+					connection:Disconnect()
+				end
+			end)
+		end
+	end)
+	
+	slider.InputChanged:Connect(function(input)
+		if input.UserInputType == Enum.UserInputType.MouseMovement then
+			if UserInputService:IsMouseButtonPressed(Enum.UserInputType.MouseButton1) then
+				updateSlider(input)
+			end
+		end
+	end)
+end
+
+local function notify(text)
+	pcall(function()
+		game.StarterGui:SetCore("SendNotification", {
+			Title = "Exploit Test";
+			Text = text;
+			Duration = 3;
+		})
+	end)
+end
+
+-- EXPLOIT FUNCTIONS
+
+-- 1. GOD MODE
+local godModeBtn = createToggleButton("GodMode", "🛡️ God Mode", false, function(state)
+	exploitStates.godMode = state
+	if state then
+		if humanoid then
+			humanoid.MaxHealth = math.huge
+			humanoid.Health = math.huge
+		end
+		notify("God Mode: ENABLED")
+	else
+		if humanoid then
+			humanoid.MaxHealth = 100
+			humanoid.Health = 100
+		end
+		notify("God Mode: DISABLED")
+	end
+end)
+
+-- 2. SPEED HACK
+createSlider("SpeedSlider", "⚡ Walk Speed", 16, 200, 16, function(value)
+	exploitStates.speedValue = value
+	if humanoid then
+		humanoid.WalkSpeed = value
+	end
+end)
+
+-- 3. JUMP POWER
+createSlider("JumpSlider", "🦘 Jump Power", 50, 300, 50, function(value)
+	exploitStates.jumpValue = value
+	if humanoid then
+		humanoid.JumpPower = value
+	end
+end)
+
+-- 4. INFINITE JUMP
+local infJumpBtn = createToggleButton("InfiniteJump", "🌟 Infinite Jump", false, function(state)
+	exploitStates.infiniteJump = state
+	notify("Infinite Jump: " .. (state and "ENABLED" or "DISABLED"))
+end)
+
+UserInputService.JumpRequest:Connect(function()
+	if exploitStates.infiniteJump and humanoid then
+		humanoid:ChangeState(Enum.HumanoidStateType.Jumping)
+	end
+end)
+
+-- 5. NOCLIP
+local noclipBtn = createToggleButton("Noclip", "👻 Noclip", false, function(state)
+	exploitStates.noclip = state
+	if state then
+		noclipConnection = RunService.Stepped:Connect(function()
+			for _, part in pairs(character:GetDescendants()) do
+				if part:IsA("BasePart") then
+					part.CanCollide = false
+				end
+			end
+		end)
+		notify("Noclip: ENABLED")
+	else
+		if noclipConnection then
+			noclipConnection:Disconnect()
+		end
+		for _, part in pairs(character:GetDescendants()) do
+			if part:IsA("BasePart") and part.Name ~= "HumanoidRootPart" then
+				part.CanCollide = true
+			end
+		end
+		notify("Noclip: DISABLED")
+	end
+end)
+
+-- 6. FLY HACK
+local flyBtn = createToggleButton("Fly", "✈️ Fly", false, function(state)
+	exploitStates.flyHack = state
+	if state then
+		local bodyVelocity = Instance.new("BodyVelocity")
+		bodyVelocity.Name = "FlyVelocity"
+		bodyVelocity.MaxForce = Vector3.new(9e9, 9e9, 9e9)
+		bodyVelocity.Velocity = Vector3.new(0, 0, 0)
+		bodyVelocity.Parent = rootPart
+		
+		local bodyGyro = Instance.new("BodyGyro")
+		bodyGyro.Name = "FlyGyro"
+		bodyGyro.MaxTorque = Vector3.new(9e9, 9e9, 9e9)
+		bodyGyro.CFrame = rootPart.CFrame
+		bodyGyro.Parent = rootPart
+		
+		flyConnection = RunService.Heartbeat:Connect(function()
+			local camera = workspace.CurrentCamera
+			local moveDirection = Vector3.new(0, 0, 0)
+			
+			if UserInputService:IsKeyDown(Enum.KeyCode.W) then
+				moveDirection = moveDirection + camera.CFrame.LookVector
+			end
+			if UserInputService:IsKeyDown(Enum.KeyCode.S) then
+				moveDirection = moveDirection - camera.CFrame.LookVector
+			end
+			if UserInputService:IsKeyDown(Enum.KeyCode.A) then
+				moveDirection = moveDirection - camera.CFrame.RightVector
+			end
+			if UserInputService:IsKeyDown(Enum.KeyCode.D) then
+				moveDirection = moveDirection + camera.CFrame.RightVector
+			end
+			if UserInputService:IsKeyDown(Enum.KeyCode.Space) then
+				moveDirection = moveDirection + Vector3.new(0, 1, 0)
+			end
+			if UserInputService:IsKeyDown(Enum.KeyCode.LeftShift) then
+				moveDirection = moveDirection - Vector3.new(0, 1, 0)
+			end
+			
+			if bodyVelocity and bodyVelocity.Parent then
+				bodyVelocity.Velocity = moveDirection * exploitStates.flySpeed
+			end
+			if bodyGyro and bodyGyro.Parent then
+				bodyGyro.CFrame = camera.CFrame
+			end
+		end)
+		notify("Fly: ENABLED (Use WASD + Space/Shift)")
+	else
+		if flyConnection then
+			flyConnection:Disconnect()
+		end
+		if rootPart:FindFirstChild("FlyVelocity") then
+			rootPart.FlyVelocity:Destroy()
+		end
+		if rootPart:FindFirstChild("FlyGyro") then
+			rootPart.FlyGyro:Destroy()
+		end
+		notify("Fly: DISABLED")
+	end
+end)
+
+createSlider("FlySpeedSlider", "✈️ Fly Speed", 10, 200, 50, function(value)
+	exploitStates.flySpeed = value
+end)
+
+-- 7. ESP (Oyuncuları Göster)
+local espBtn = createToggleButton("ESP", "👁️ ESP (Player ESP)", false, function(state)
+	exploitStates.esp = state
+	if state then
+		espFolder = Instance.new("Folder")
+		espFolder.Name = "ESPFolder"
+		espFolder.Parent = game.CoreGui
+		
+		for _, plr in pairs(Players:GetPlayers()) do
+			if plr ~= player and plr.Character then
+				local highlight = Instance.new("Highlight")
+				highlight.Name = "ESP_" .. plr.Name
+				highlight.Adornee = plr.Character
+				highlight.FillColor = Color3.fromRGB(255, 0, 0)
+				highlight.OutlineColor = Color3.fromRGB(255, 255, 255)
+				highlight.FillTransparency = 0.5
+				highlight.OutlineTransparency = 0
+				highlight.Parent = espFolder
+			end
+		end
+		notify("ESP: ENABLED")
+	else
+		if espFolder then
+			espFolder:Destroy()
+		end
+		notify("ESP: DISABLED")
+	end
+end)
+
+-- 8. FULLBRIGHT
+local fullbrightBtn = createToggleButton("Fullbright", "💡 Fullbright", false, function(state)
+	exploitStates.fullbright = state
+	local Lighting = game:GetService("Lighting")
+	if state then
+		Lighting.Brightness = 2
+		Lighting.ClockTime = 14
+		Lighting.FogEnd = 100000
+		Lighting.GlobalShadows = false
+		Lighting.OutdoorAmbient = Color3.fromRGB(128, 128, 128)
+		notify("Fullbright: ENABLED")
+	else
+		Lighting.Brightness = 1
+		Lighting.ClockTime = 12
+		Lighting.FogEnd = 100000
+		Lighting.GlobalShadows = true
+		notify("Fullbright: DISABLED")
+	end
+end)
+
+-- 9. TELEPORT TO LOCATIONS
+createButton("TpBank", "📍 Teleport: Bank", function()
+	local bankMarker = ReplicatedStorage:FindFirstChild("Markers") and ReplicatedStorage.Markers:FindFirstChild("Bank")
+	if bankMarker and rootPart then
+		rootPart.CFrame = bankMarker.CFrame + Vector3.new(0, 5, 0)
+		notify("Teleported to: Bank")
+	end
+end)
+
+createButton("TpJewelry", "📍 Teleport: Jewelry Store", function()
+	local jewelryMarker = ReplicatedStorage:FindFirstChild("Markers") and ReplicatedStorage.Markers:FindFirstChild("JewelryStore")
+	if jewelryMarker and rootPart then
+		rootPart.CFrame = jewelryMarker.CFrame + Vector3.new(0, 5, 0)
+		notify("Teleported to: Jewelry Store")
+	end
+end)
+
+createButton("TpCriminalBase", "📍 Teleport: Criminal Base", function()
+	local criminalMarker = ReplicatedStorage:FindFirstChild("Markers") and ReplicatedStorage.Markers:FindFirstChild("Dropoff_CriminalBase")
+	if criminalMarker and rootPart then
+		rootPart.CFrame = criminalMarker.CFrame + Vector3.new(0, 5, 0)
+		notify("Teleported to: Criminal Base")
+	end
+end)
+
+createButton("TpGarage", "📍 Teleport: Garage", function()
+	local garageMarker = ReplicatedStorage:FindFirstChild("Markers") and ReplicatedStorage.Markers:FindFirstChild("Garage")
+	if garageMarker and rootPart then
+		rootPart.CFrame = garageMarker.CFrame + Vector3.new(0, 5, 0)
+		notify("Teleported to: Garage")
+	end
+end)
+
+-- 10. SPAWN VEHICLE
+createButton("SpawnVehicle", "🚗 Spawn Random Vehicle", function()
+	local vehicles = ReplicatedStorage:FindFirstChild("Vehicles") and ReplicatedStorage.Vehicles:FindFirstChild("Models")
+	if vehicles and #vehicles:GetChildren() > 0 then
+		local randomVehicle = vehicles:GetChildren()[math.random(1, #vehicles:GetChildren())]
+		if randomVehicle:IsA("Model") then
+			local clone = randomVehicle:Clone()
+			clone.Parent = workspace
+			if rootPart then
+				clone:SetPrimaryPartCFrame(rootPart.CFrame + rootPart.CFrame.LookVector * 10)
+			end
+			notify("Spawned: " .. randomVehicle.Name)
+		end
+	end
+end)
+
+-- 11. COLLECT ALL XP ORBS
+createButton("CollectXP", "⭐ Collect All XP Orbs", function()
+	local collected = 0
+	for _, orb in pairs(workspace:GetDescendants()) do
+		if orb.Name == "XPOrb" or orb.Name:match("Orb") then
+			if orb:IsA("BasePart") and rootPart then
+				pcall(function()
+					firetouchinterest(rootPart, orb, 0)
+					task.wait(0.1)
+					firetouchinterest(rootPart, orb, 1)
+				end)
+				collected = collected + 1
+			end
+		end
+	end
+	notify("Collected " .. collected .. " XP Orbs")
+end)
+
+-- 12. REMOVE FOG & EFFECTS
+createButton("RemoveFog", "🌫️ Remove Fog & Effects", function()
+	local Lighting = game:GetService("Lighting")
+	for _, effect in pairs(Lighting:GetChildren()) do
+		if effect:IsA("Atmosphere") or effect:IsA("BloomEffect") or effect:IsA("BlurEffect") or effect:IsA("ColorCorrectionEffect") then
+			effect:Destroy()
+		end
+	end
+	Lighting.FogEnd = 100000
+	notify("Removed all visual effects")
+end)
+
+-- 13. UNLOCK ALL TOOLS
+createButton("UnlockTools", "🔧 Give All Tools", function()
+	local tools = ReplicatedStorage:FindFirstChild("ToolsStuff") and ReplicatedStorage.ToolsStuff:FindFirstChild("Tools")
+	if tools then
+		for _, tool in pairs(tools:GetChildren()) do
+			if tool:IsA("Tool") then
+				local clone = tool:Clone()
+				clone.Parent = player.Backpack
+			end
+		end
+		notify("All tools added to inventory")
+	end
+end)
+
+-- 14. ANTI-AFK
+local antiAFKBtn = createToggleButton("AntiAFK", "💤 Anti-AFK", false, function(state)
+	if state then
+		local vu = game:GetService("VirtualUser")
+		player.Idled:Connect(function()
+			vu:Button2Down(Vector2.new(0,0),workspace.CurrentCamera.CFrame)
+			wait(1)
+			vu:Button2Up(Vector2.new(0,0),workspace.CurrentCamera.CFrame)
+		end)
+		notify("Anti-AFK: ENABLED")
+	else
+		notify("Anti-AFK: DISABLED (Restart required)")
+	end
+end)
+
+-- 15. GIVE ALL WEAPONS
+createButton("GiveWeapons", "🔫 Give All Weapons", function()
+	local weapons = ReplicatedStorage:FindFirstChild("Weapons")
+	if weapons then
+		local count = 0
+		for _, weapon in pairs(weapons:GetDescendants()) do
+			if weapon:IsA("Tool") then
+				local clone = weapon:Clone()
+				clone.Parent = player.Backpack
+				count = count + 1
+			end
+		end
+		notify("Added " .. count .. " weapons")
+	end
+end)
+
+-- 16. RESET CHARACTER
+createButton("ResetChar", "🔄 Reset Character", function()
+	if humanoid then
+		humanoid.Health = 0
+	end
+end)
+
+-- 17. INFINITE ZOOM
+createButton("InfZoom", "🔭 Infinite Zoom", function()
+	player.CameraMaxZoomDistance = 99999
+	player.CameraMinZoomDistance = 0
+	notify("Infinite Zoom: ENABLED")
+end)
+
+-- 18. CLICKTP
+local clickTpEnabled = false
+local clickTpBtn = createToggleButton("ClickTP", "🖱️ Click TP", false, function(state)
+	clickTpEnabled = state
+	if state then
+		notify("Click TP: ENABLED (Hold CTRL + Click)")
+	else
+		notify("Click TP: DISABLED")
+	end
+end)
+
+local mouse = player:GetMouse()
+mouse.Button1Down:Connect(function()
+	if clickTpEnabled and UserInputService:IsKeyDown(Enum.KeyCode.LeftControl) and rootPart then
+		local target = mouse.Hit
+		rootPart.CFrame = CFrame.new(target.Position + Vector3.new(0, 3, 0))
+	end
+end)
+
+-- 19. VIEW REMOTES (Debug)
+createButton("ViewRemotes", "🔍 List All RemoteEvents", function()
+	local count = 0
+	for _, remote in pairs(ReplicatedStorage:GetDescendants()) do
+		if remote:IsA("RemoteEvent") or remote:IsA("RemoteFunction") then
+			print("[REMOTE]", remote:GetFullName())
+			count = count + 1
+		end
+	end
+	notify("Found " .. count .. " remotes (Check console F9)")
+end)
+
+-- 20. DESTROY ALL DISASTERS
+createButton("StopDisasters", "🌪️ Stop All Disasters", function()
+	local disasters = workspace:FindFirstChild("Disasters")
+	if disasters then
+		for _, disaster in pairs(disasters:GetChildren()) do
+			disaster:Destroy()
+		end
+		notify("All disasters removed")
+	end
+end)
+
+-- 21. TELEPORT TO PLAYER
+createButton("TpToPlayer", "👤 Teleport to Random Player", function()
+	local players = Players:GetPlayers()
+	for _, plr in pairs(players) do
+		if plr ~= player and plr.Character and plr.Character:FindFirstChild("HumanoidRootPart") then
+			rootPart.CFrame = plr.Character.HumanoidRootPart.CFrame + Vector3.new(0, 3, 0)
+			notify("Teleported to: " .. plr.Name)
+			break
+		end
+	end
+end)
+
+-- ============================================
+-- SERVER-SIDE EXPLOITS (HERKES GÖRÜR)
+-- ============================================
+
+-- 22. AUTO COLLECT XP WITH TELEPORT (SERVER-SIDE)
+local autoCollectXPBtn = createToggleButton("AutoCollectXP", "💰 Auto Collect XP + TP", false, function(state)
+	exploitStates.autoCollectXP = state
+	if state then
+		task.spawn(function()
+			while exploitStates.autoCollectXP do
+				pcall(function()
+					if not rootPart then
+						task.wait(2)
+						return
+					end
+					
+					local currentStuff = workspace:FindFirstChild("CurrentStuff")
+					if currentStuff then
+						local xpOrbs = currentStuff:FindFirstChild("CurrentXPOrbs")
+						if xpOrbs then
+							local orbs = xpOrbs:GetChildren()
+							
+							for _, orb in pairs(orbs) do
+								if not exploitStates.autoCollectXP then break end
+								if not rootPart then break end
+								
+								if orb:IsA("Model") and rootPart then
+									local hitbox = orb:FindFirstChild("Hitbox")
+									if hitbox and hitbox:IsA("BasePart") then
+										-- Teleport to orb
+										rootPart.CFrame = CFrame.new(hitbox.Position + Vector3.new(0, 3, 0))
+										task.wait(0.1)
+										
+										-- Collect it
+										firetouchinterest(rootPart, hitbox, 0)
+										task.wait(0.05)
+										firetouchinterest(rootPart, hitbox, 1)
+										task.wait(0.1)
+									end
+								end
+							end
+						end
+					end
+				end)
+				task.wait(2) -- Check every 2 seconds
+			end
+		end)
+		notify("Auto Collect XP: ENABLED (With TP)")
+	else
+		notify("Auto Collect XP: DISABLED")
+	end
+end)
+
+-- 23. AUTO FARM MONEY WITH TELEPORT (SERVER-SIDE)
+local autoFarmBtn = createToggleButton("AutoFarm", "💵 Auto Farm Money + TP", false, function(state)
+	exploitStates.autoFarm = state
+	if state then
+		task.spawn(function()
+			while exploitStates.autoFarm do
+				pcall(function()
+					-- Collect money from CurrentStuff
+					local currentStuff = workspace:FindFirstChild("CurrentStuff")
+					if currentStuff then
+						for _, item in pairs(currentStuff:GetDescendants()) do
+							if not exploitStates.autoFarm then break end
+							
+							if item:IsA("Model") or item:IsA("BasePart") then
+								-- Check if it's money or plasma cell
+								if item.Name:match("Money") or item.Name:match("Cash") or 
+								   item.Name:match("PlasmaCell") or item.Name:match("Bill") then
+									local hitPart = nil
+									
+									if item:IsA("BasePart") then
+										hitPart = item
+									elseif item:IsA("Model") then
+										hitPart = item:FindFirstChild("Hitbox") or item:FindFirstChild("PhysicsPart") or item.PrimaryPart
+									end
+									
+									if hitPart and hitPart:IsA("BasePart") and rootPart then
+										-- Teleport to money
+										rootPart.CFrame = CFrame.new(hitPart.Position + Vector3.new(0, 3, 0))
+										task.wait(0.1)
+										
+										-- Collect it
+										firetouchinterest(rootPart, hitPart, 0)
+										task.wait(0.05)
+										firetouchinterest(rootPart, hitPart, 1)
+										task.wait(0.1)
+									end
+								end
+							end
+						end
+					end
+					
+					-- Check workspace directly for money
+					for _, money in pairs(workspace:GetChildren()) do
+						if not exploitStates.autoFarm then break end
+						
+						if money.Name:match("Money") and money:IsA("Model") then
+							local hitbox = money:FindFirstChild("Hitbox")
+							if hitbox and hitbox:IsA("BasePart") and rootPart then
+								-- Teleport to money
+								rootPart.CFrame = CFrame.new(hitbox.Position + Vector3.new(0, 3, 0))
+								task.wait(0.1)
+								
+								-- Collect it
+								firetouchinterest(rootPart, hitbox, 0)
+								task.wait(0.05)
+								firetouchinterest(rootPart, hitbox, 1)
+								task.wait(0.1)
+							end
+						end
+					end
+				end)
+				task.wait(2) -- Check every 2 seconds
+			end
+		end)
+		notify("Auto Farm Money: ENABLED (With TP)")
+	else
+		notify("Auto Farm Money: DISABLED")
+	end
+end)
+
+-- 23B. AUTO COLLECT MAP ITEMS (CashPile, Bills, etc.)
+local autoMapItemsBtn = createToggleButton("AutoMapItems", "💸 Auto Collect Map Items", false, function(state)
+	if state then
+		task.spawn(function()
+			while exploitStates.autoFarm or state do
+				pcall(function()
+					-- Search entire workspace for collectible items
+					for _, item in pairs(workspace:GetDescendants()) do
+						if not state then break end
+						if not rootPart then break end
+						
+						-- Check for collectible items by name
+						if item.Name:match("CashPile") or item.Name:match("MoneyPile") or 
+						   item.Name:match("Bill") or item.Name:match("Cash") or
+						   item.Name:match("Coin") or item.Name:match("Gold") or
+						   item.Name:match("Jewel") or item.Name:match("Diamond") then
+							
+							-- Make sure it's not in a heist (already handled by auto rob)
+							local inHeist = false
+							local parent = item.Parent
+							while parent do
+								if parent.Name == "Heists" then
+									inHeist = true
+									break
+								end
+								parent = parent.Parent
+							end
+							
+							if not inHeist then
+								local targetPart = nil
+								local pp = nil
+								
+								-- Check if it has a ProximityPrompt
+								if item:IsA("Model") then
+									pp = item:FindFirstChild("ProximityPrompt", true)
+									targetPart = item.PrimaryPart or item:FindFirstChildWhichIsA("BasePart")
+								elseif item:IsA("BasePart") then
+									pp = item:FindFirstChild("ProximityPrompt")
+									targetPart = item
+								end
+								
+								if targetPart and rootPart then
+									-- Teleport to item
+									rootPart.CFrame = CFrame.new(targetPart.Position + Vector3.new(0, 4, 0))
+									task.wait(0.2)
+									
+									-- Try ProximityPrompt first
+									if pp and pp.Enabled then
+										fireproximityprompt(pp)
+										print("[MAP ITEMS] Collected via PP:", item.Name)
+									end
+									
+									-- Try touch if it has a Hitbox
+									local hitbox = nil
+									if item:IsA("Model") then
+										hitbox = item:FindFirstChild("Hitbox") or item:FindFirstChild("Handle")
+									end
+									
+									if hitbox and hitbox:IsA("BasePart") then
+										firetouchinterest(rootPart, hitbox, 0)
+										task.wait(0.05)
+										firetouchinterest(rootPart, hitbox, 1)
+										print("[MAP ITEMS] Collected via touch:", item.Name)
+									end
+									
+									task.wait(0.3)
+								end
+							end
+						end
+					end
+				end)
+				task.wait(3) -- Scan every 3 seconds
+			end
+		end)
+		notify("Auto Map Items: ENABLED")
+	else
+		notify("Auto Map Items: DISABLED")
+	end
+end)
+
+-- 23C. AUTO COLLECT CASHPILES (DEDICATED SEQUENTIAL COLLECTOR)
+local autoCashPileState = false
+local autoCashPileBtn = createToggleButton("AutoCashPile", "💰 Auto CashPile Collector", false, function(state)
+	autoCashPileState = state
+	
+	if state then
+		notify("Auto CashPile: ENABLED - Sequential collection!")
+		
+		task.spawn(function()
+			while autoCashPileState do
+				local success = pcall(function()
+					-- Check if still enabled
+					if not autoCashPileState then 
+						print("[CASHPILE] Stopped by user")
+						return 
+					end
+					
+					if not rootPart then
+						print("[CASHPILE] Waiting for character...")
+						task.wait(2)
+						return
+					end
+					
+					-- Find all CashPile models in Workspace.Collectibles
+					local collectibles = workspace:FindFirstChild("Collectibles")
+					if not collectibles then
+						print("[CASHPILE] Collectibles folder not found!")
+						task.wait(5)
+						return
+					end
+					
+					-- Find CashPiles with ENABLED ProximityPrompts only
+					local availableCashPiles = {}
+					for _, item in pairs(collectibles:GetChildren()) do
+						if not autoCashPileState then break end
+						
+						if item:IsA("Model") and item.Name == "CashPile" then
+							-- Check if this CashPile has an enabled ProximityPrompt
+							local pp = item:FindFirstChild("ProximityPrompt", true)
+							if pp and pp.Enabled then
+								table.insert(availableCashPiles, {pile = item, prompt = pp})
+							end
+						end
+					end
+					
+					-- If no available CashPiles, wait and skip
+					if #availableCashPiles == 0 then
+						print("[CASHPILE] No available CashPiles (all collected), waiting for respawn...")
+						task.wait(5) -- Wait 5 seconds before checking again
+						return
+					end
+					
+					print("[CASHPILE] Found", #availableCashPiles, "available CashPiles (uncollected)")
+					
+					-- Collect each available CashPile sequentially
+					local collected = 0
+					for i, data in ipairs(availableCashPiles) do
+						-- Check if still enabled before each collection
+						if not autoCashPileState then 
+							print("[CASHPILE] Stopped by user during collection")
+							break 
+						end
+						
+						if not rootPart then 
+							print("[CASHPILE] Character lost during collection!")
+							break 
+						end
+						
+						local cashPile = data.pile
+						local pp = data.prompt
+						
+						-- Double-check ProximityPrompt is still enabled
+						if not pp.Enabled then
+							print(string.format("[CASHPILE] (%d/%d) Already collected, skipping", i, #availableCashPiles))
+							task.wait(0.2)
+							continue
+						end
+						
+						-- Get the CashPile position
+						local cashPilePos = cashPile:GetPivot().Position
+						
+						-- Teleport to CashPile (slightly above)
+						rootPart.CFrame = CFrame.new(cashPilePos + Vector3.new(0, 4, 0))
+						task.wait(0.3)
+						
+						-- Fire the ProximityPrompt
+						fireproximityprompt(pp)
+						collected = collected + 1
+						print(string.format("[CASHPILE] (%d/%d) Collected!", collected, #availableCashPiles))
+						
+						-- Wait before next pile
+						task.wait(0.5)
+					end
+					
+					if collected > 0 then
+						print("[CASHPILE] Collected:", collected, "CashPiles this cycle")
+						notify("CashPiles: " .. collected .. " collected!")
+					end
+				end)
+				
+				if not success then
+					print("[CASHPILE] Error occurred, retrying...")
+				end
+				
+				-- Wait before next scan cycle
+				task.wait(3) -- Check for new CashPiles every 3 seconds
+			end
+			
+			print("[CASHPILE] Auto CashPile Collector stopped")
+		end)
+	else
+		notify("Auto CashPile: DISABLED")
+		print("[CASHPILE] Disabled by user")
+	end
+end)
+
+-- 23D. AUTO BANK ROB (FULL AUTOMATED HEIST)
+local autoBankRobState = false
+local autoBankRobBtn = createToggleButton("AutoBankRob", "🏦 Auto Bank Heist (Full)", false, function(state)
+	autoBankRobState = state
+	
+	if state then
+		notify("Auto Bank Heist: STARTING...")
+		
+		task.spawn(function()
+			while autoBankRobState do
+				pcall(function()
+					if not autoBankRobState then return end
+					if not rootPart then
+						task.wait(2)
+						return
+					end
+					
+					local bank = workspace:FindFirstChild("Heists") and workspace.Heists:FindFirstChild("Bank")
+					if not bank then
+						print("[BANK] Bank not found!")
+						task.wait(10)
+						return
+					end
+					
+					print("[BANK] Starting bank heist...")
+					notify("Bank: Starting!")
+					
+					-- Step 1: Check if computer needs hacking
+					local computerHacked = false
+					local bankComputer = bank:FindFirstChild("Mechanics") and bank.Mechanics:FindFirstChild("BankComputer")
+					
+					if bankComputer then
+						local checkmark = bankComputer:FindFirstChild("Checkmark")
+						if checkmark and checkmark.Transparency < 1 then
+							print("[BANK] Computer already hacked! Skipping...")
+							computerHacked = true
+						else
+							local computerPP = bankComputer:FindFirstChild("ProximityPrompt", true)
+							if computerPP and computerPP.Enabled and rootPart then
+								print("[BANK] Step 1: Hacking computer...")
+								local computerPos = bankComputer:GetPivot().Position
+								rootPart.CFrame = CFrame.new(computerPos + Vector3.new(0, 3, 0))
+								task.wait(0.5)
+								fireproximityprompt(computerPP)
+								print("[BANK] Computer hack started!")
+								
+								-- Auto-click minigame buttons
+								task.wait(1)
+								print("[BANK] Starting minigame auto-clicker...")
+								local minigameGui = player.PlayerGui:FindFirstChild("HackingMinigames")
+								if minigameGui then
+									local buttonsFrame = minigameGui:FindFirstChild("HackingMinigames") and 
+									                      minigameGui.HackingMinigames:FindFirstChild("MainFrame") and
+									                      minigameGui.HackingMinigames.MainFrame:FindFirstChild("CoinMinigame") and
+									                      minigameGui.HackingMinigames.MainFrame.CoinMinigame:FindFirstChild("MinigameButtons")
+									
+									if buttonsFrame then
+										print("[BANK] Found MinigameButtons frame!")
+										local redColor = Color3.fromRGB(218, 0, 0)
+										local clickedCount = 0
+										local startTime = tick()
+										local maxTime = 20
+										
+										while clickedCount < 10 and tick() - startTime < maxTime do
+											if not autoBankRobState then break end
+											
+											-- Find all red (active) buttons
+											for _, btn in pairs(buttonsFrame:GetChildren()) do
+												if btn:IsA("ImageButton") and btn.Active and btn.ImageColor3 == redColor then
+													pcall(function()
+														-- Method 1: firesignal (best for Activated)
+														for i,v in pairs(getconnections(btn.Activated)) do
+															v:Fire()
+														end
+														clickedCount = clickedCount + 1
+														print(string.format("[BANK] Clicked button %s (%d/10)", btn.Name, clickedCount))
+														task.wait(0.2)
+													end)
+													break -- Only click one per cycle
+												end
+											end
+											
+											-- Check if completed
+											local checkmark = bankComputer:FindFirstChild("Checkmark")
+											if checkmark and checkmark.Transparency < 1 then
+												print("[BANK] Minigame completed!")
+												computerHacked = true
+												break
+											end
+											
+											task.wait(0.1)
+										end
+										
+										if clickedCount >= 10 then
+											print("[BANK] All 10 buttons clicked!")
+											computerHacked = true
+										end
+									else
+										print("[BANK] MinigameButtons frame not found!")
+									end
+								else
+									print("[BANK] HackingMinigames GUI not found!")
+								end
+								
+								-- Wait a bit more for checkmark to appear
+								if not computerHacked then
+									print("[BANK] Waiting for checkmark...")
+									for i = 1, 10 do
+										local checkmark = bankComputer:FindFirstChild("Checkmark")
+										if checkmark and checkmark.Transparency < 1 then
+											print("[BANK] Computer hacked!")
+											computerHacked = true
+											break
+										end
+										task.wait(0.5)
+									end
+								end
+								
+								if not computerHacked then
+									print("[BANK] Minigame did not complete, but continuing to loot...")
+								end
+								
+								task.wait(2)
+							end
+						end
+					end
+					
+					-- Step 2: Check bank status (just warn, don't stop)
+					local bankStatus = bank:FindFirstChild("Scripts") and bank.Scripts:FindFirstChild("Status")
+					if bankStatus then
+						print("[BANK] Bank status:", bankStatus.Value)
+						if bankStatus.Value == "closed" then
+							print("[BANK] Bank is closed but continuing anyway...")
+						end
+					end
+					
+					-- Step 3: Find loot EVERYWHERE (aggressive search)
+					print("[BANK] === LOOT SCAN START ===")
+					print("[BANK] Step 3: Scanning for loot...")
+					
+					local vaultLoot = {}
+					
+					-- Method 1: Check ALL Workspace.Collectibles (global spawned loot)
+					local globalCollectibles = workspace:FindFirstChild("Collectibles")
+					if globalCollectibles then
+						print("[BANK] Checking Workspace.Collectibles...")
+						local count = 0
+						for _, item in pairs(globalCollectibles:GetChildren()) do
+							if not autoBankRobState then break end
+							
+							if item:IsA("Model") and (item.Name == "CashPile" or item.Name == "CashPileExtra") then
+								local pp = item:FindFirstChild("ProximityPrompt", true)
+								if pp and pp.Enabled then
+									table.insert(vaultLoot, {prompt = pp, parent = item, method = "PP", source = "Workspace.Collectibles"})
+									count = count + 1
+								end
+							end
+						end
+						print("[BANK] Found", count, "items in Workspace.Collectibles")
+					end
+					
+					-- Method 2: Check BankVariations in ReplicatedStorage (template loot)
+					local variations = ReplicatedStorage:FindFirstChild("BankVariations")
+					if variations then
+						print("[BANK] Checking ReplicatedStorage.BankVariations...")
+						local count = 0
+						for _, variation in pairs(variations:GetChildren()) do
+							local collectibles = variation:FindFirstChild("Collectibles")
+							if collectibles then
+								for _, item in pairs(collectibles:GetDescendants()) do
+									if item:IsA("ProximityPrompt") and item.Enabled then
+										table.insert(vaultLoot, {prompt = item, parent = item.Parent, method = "PP", source = "BankVariations"})
+										count = count + 1
+									end
+								end
+							end
+						end
+						print("[BANK] Found", count, "items in BankVariations")
+					end
+					
+					-- Method 3: Check workspace Bank for ANY spawned loot with PP
+					print("[BANK] Checking Workspace.Heists.Bank...")
+					local count = 0
+					for _, item in pairs(bank:GetDescendants()) do
+						if not autoBankRobState then break end
+						
+						if item:IsA("ProximityPrompt") and item.Enabled then
+							local parent = item.Parent
+							-- Exclude computer, buttons, elevators
+							if parent and parent.Name ~= "BankComputer" and 
+							   parent.Name ~= "Buttons" and 
+							   not parent.Name:match("Elevator") and
+							   not parent.Name:match("Door") then
+								table.insert(vaultLoot, {prompt = item, parent = parent, method = "PP", source = "Bank"})
+								count = count + 1
+								print("[BANK]   - Found PP in:", parent.Name)
+							end
+						end
+					end
+					print("[BANK] Found", count, "items in Bank")
+					
+					-- Method 4: Touch-based loot (Golden items, ATMs) - ALWAYS CHECK
+					print("[BANK] Checking touch-based loot (Golden items)...")
+					local inside = bank:FindFirstChild("Building") and bank.Building:FindFirstChild("Inside")
+					if inside then
+						local count = 0
+						for _, item in pairs(inside:GetChildren()) do
+							if item:IsA("Model") and item.Name:match("Golden") then
+								local hitbox = item:FindFirstChildWhichIsA("BasePart")
+								if hitbox then
+									table.insert(vaultLoot, {parent = item, hitbox = hitbox, method = "Touch", source = "Golden"})
+									count = count + 1
+									print("[BANK]   - Found Golden:", item.Name)
+								end
+							end
+						end
+						print("[BANK] Found", count, "Golden items")
+					end
+					
+					-- Method 5: ATMs outside
+					local outside = bank:FindFirstChild("Building") and bank.Building:FindFirstChild("Outside")
+					if outside then
+						local count = 0
+						for _, atm in pairs(outside:GetChildren()) do
+							if atm:IsA("Model") and atm.Name:match("ATM") then
+								local hitbox = atm:FindFirstChildWhichIsA("BasePart")
+								if hitbox then
+									table.insert(vaultLoot, {parent = atm, hitbox = hitbox, method = "Touch", source = "ATM"})
+									count = count + 1
+									print("[BANK]   - Found ATM:", atm.Name)
+								end
+							end
+						end
+						print("[BANK] Found", count, "ATMs")
+					end
+					
+					print("[BANK] === LOOT SCAN COMPLETE ===")
+					print("[BANK] Total loot found:", #vaultLoot)
+					
+					if #vaultLoot == 0 then
+						print("[BANK] ⚠️ NO LOOT FOUND! Possible reasons:")
+						print("[BANK]   1. Bank not properly opened yet")
+						print("[BANK]   2. Loot already collected by others")
+						print("[BANK]   3. Loot hasn't spawned yet")
+						print("[BANK] Waiting 5 seconds and retrying...")
+						task.wait(5)
+						return
+					end
+					
+					-- Step 4: Rob all loot
+					print("[BANK] === ROBBING START ===")
+					local robbed = 0
+					for i, data in ipairs(vaultLoot) do
+						if not autoBankRobState then 
+							print("[BANK] Stopped by user")
+							break 
+						end
+						if not rootPart then 
+							print("[BANK] Character lost!")
+							break 
+						end
+						
+						local parent = data.parent
+						local source = data.source or "Unknown"
+						print(string.format("[BANK] Processing %d/%d: %s from %s", i, #vaultLoot, parent.Name, source))
+						
+						-- Check bag/inventory
+						local toolCount = 0
+						if player.Backpack then
+							toolCount = toolCount + #player.Backpack:GetChildren()
+						end
+						if character then
+							for _, item in pairs(character:GetChildren()) do
+								if item:IsA("Tool") then
+									toolCount = toolCount + 1
+								end
+							end
+						end
+						
+						print(string.format("[BANK]   Inventory: %d tools", toolCount))
+						
+						-- Deposit if bag full (5+ tools)
+						if toolCount >= 5 then
+							print("[BANK]   Bag full! Depositing...")
+							local dropLocations = workspace:FindFirstChild("DropLocations")
+							if dropLocations and rootPart then
+								for _, crate in pairs(dropLocations:GetChildren()) do
+									if crate:IsA("Model") and crate.Name == "ToolCrate" then
+										local pp = crate:FindFirstChild("ProximityPrompt", true)
+										if pp and rootPart then
+											local cratePos = crate:GetPivot().Position
+											rootPart.CFrame = CFrame.new(cratePos + Vector3.new(0, 5, 0))
+											print("[BANK]   Teleported to ToolCrate")
+											task.wait(0.3)
+											fireproximityprompt(pp)
+											print("[BANK]   Deposited!")
+											task.wait(1)
+											break
+										end
+									end
+								end
+							end
+						end
+						
+						-- Rob item based on method
+						if data.method == "PP" then
+							-- ProximityPrompt method
+							local pp = data.prompt
+							if not pp or not pp.Enabled then
+								print("[BANK]   ⚠️ PP not available, skipping")
+								goto continue
+							end
+							
+							if not rootPart then 
+								print("[BANK]   ⚠️ No rootPart, skipping")
+								goto continue 
+							end
+							
+							local targetPos
+							if parent:IsA("BasePart") then
+								targetPos = parent.Position
+							elseif parent:IsA("Model") then
+								if parent.PrimaryPart then
+									targetPos = parent:GetPivot().Position
+								else
+									local partInModel = parent:FindFirstChildWhichIsA("BasePart")
+									if partInModel then
+										targetPos = partInModel.Position
+									end
+								end
+							end
+							
+							if targetPos then
+								print(string.format("[BANK]   Teleporting to: %.0f, %.0f, %.0f", targetPos.X, targetPos.Y, targetPos.Z))
+								rootPart.CFrame = CFrame.new(targetPos + Vector3.new(0, 3, 0))
+								task.wait(0.2)
+								
+								print("[BANK]   Firing ProximityPrompt...")
+								fireproximityprompt(pp)
+								robbed = robbed + 1
+								print(string.format("[BANK]   ✅ SUCCESS! Robbed %d/%d (PP)", robbed, #vaultLoot))
+								task.wait(0.3)
+							else
+								print("[BANK]   ⚠️ Could not get position, skipping")
+							end
+							
+						elseif data.method == "Touch" then
+							-- Touch method (Golden, ATM)
+							local hitbox = data.hitbox
+							if not hitbox or not rootPart then
+								print("[BANK]   ⚠️ Touch method failed (no hitbox or rootPart), skipping")
+								goto continue
+							end
+							
+							local targetPos = hitbox.Position
+							print(string.format("[BANK]   Teleporting to: %.0f, %.0f, %.0f", targetPos.X, targetPos.Y, targetPos.Z))
+							rootPart.CFrame = CFrame.new(targetPos + Vector3.new(0, 3, 0))
+							task.wait(0.2)
+							
+							-- Try touch
+							print("[BANK]   Firing touch...")
+							firetouchinterest(rootPart, hitbox, 0)
+							task.wait(0.05)
+							firetouchinterest(rootPart, hitbox, 1)
+							
+							robbed = robbed + 1
+							print(string.format("[BANK]   ✅ SUCCESS! Robbed %d/%d (Touch)", robbed, #vaultLoot))
+							task.wait(0.3)
+						end
+						
+						::continue::
+					end
+					
+					print("[BANK] === ROBBING COMPLETE ===")
+					print(string.format("[BANK] Total robbed: %d out of %d", robbed, #vaultLoot))
+					
+					-- Final deposit
+					if robbed > 0 and rootPart then
+						print("[BANK] Final deposit...")
+						local dropLocations = workspace:FindFirstChild("DropLocations")
+						if dropLocations then
+							for _, crate in pairs(dropLocations:GetChildren()) do
+								if crate:IsA("Model") and crate.Name == "ToolCrate" then
+									local pp = crate:FindFirstChild("ProximityPrompt", true)
+									if pp and rootPart then
+										local cratePos = crate:GetPivot().Position
+										rootPart.CFrame = CFrame.new(cratePos + Vector3.new(0, 5, 0))
+										task.wait(0.3)
+										fireproximityprompt(pp)
+										task.wait(1)
+										break
+									end
+								end
+							end
+						end
+					end
+					
+					if robbed > 0 then
+						print("[BANK] Complete! Robbed:", robbed, "items")
+						notify("Bank Done! " .. robbed .. " items")
+					end
+				end)
+				
+				-- Check every 5-10 seconds
+				task.wait(math.random(5, 10))
+			end
+		end)
+	else
+		notify("Auto Bank Heist: DISABLED")
+	end
+end)
+
+-- 24. AUTO ROB ALL HEISTS WITH TELEPORT + AUTO DEPOSIT (SERVER-SIDE)
+local autoRobBtn = createToggleButton("AutoRob", "🏦 Auto Rob + Deposit", false, function(state)
+	exploitStates.autoRob = state
+	if state then
+		notify("Auto Rob: ENABLED - TP + Auto Deposit!")
+		
+		task.spawn(function()
+			while exploitStates.autoRob do
+				pcall(function()
+					-- Check if character exists
+					if not character or not rootPart then
+						print("[AUTO ROB] Waiting for character...")
+						task.wait(2)
+						return
+					end
+					
+					local heists = workspace:FindFirstChild("Heists")
+					if not heists then return end
+					
+					-- List of all heists to rob
+					local heistList = {
+						"Bank",
+						"Jewelry", 
+						"Arcade",
+						"SideHeist_LuckyCoffeeShop",
+						"SideHeist_RobinOilGasStation",
+						"SideHeist_Apartment"
+					}
+					
+					for _, heistName in ipairs(heistList) do
+						if not exploitStates.autoRob then break end
+						if not rootPart then break end
+						
+						local heist = heists:FindFirstChild(heistName)
+						if heist then
+							print("[AUTO ROB] Processing:", heistName)
+							
+							-- Find all proximity prompts in this heist
+							local prompts = {}
+							for _, descendant in pairs(heist:GetDescendants()) do
+								if descendant:IsA("ProximityPrompt") then
+									local parent = descendant.Parent
+									if parent and (parent.Name:match("Loot") or parent.Name:match("Cash") or 
+									   parent.Name:match("Jewel") or parent.Name:match("Register") or 
+									   parent.Name:match("Safe") or parent.Name:match("Gold") or
+									   parent.Name:match("Display") or parent.Name:match("Crate") or
+									   parent.Name:match("Vault") or parent.Name:match("Money") or
+									   parent.Name:match("Steal")) then
+										table.insert(prompts, {prompt = descendant, parent = parent})
+									end
+								end
+							end
+							
+							print("[AUTO ROB] Found", #prompts, "loot items in", heistName)
+							
+							-- Rob each item
+							local itemsRobbed = 0
+							for i, data in ipairs(prompts) do
+								if not exploitStates.autoRob then break end
+								if not rootPart then break end
+								
+								-- Check if backpack/inventory is full
+								local backpackCount = #player.Backpack:GetChildren()
+								local charCount = 0
+								if character then
+									for _, item in pairs(character:GetChildren()) do
+										if item:IsA("Tool") then
+											charCount = charCount + 1
+										end
+									end
+								end
+								local totalItems = backpackCount + charCount
+								
+								-- If inventory has 5+ items, go deposit
+								if totalItems >= 5 then
+									print("[AUTO ROB] Inventory full! Going to deposit...")
+									notify("Inventory Full! Depositing...")
+									
+									-- Find nearest drop location
+									local dropLocations = workspace:FindFirstChild("DropLocations")
+									if dropLocations and rootPart then
+										-- Find a deposit crate with ProximityPrompt
+										for _, crate in pairs(dropLocations:GetChildren()) do
+											if crate:IsA("Model") and crate.Name == "ToolCrate" then
+												local pp = crate:FindFirstChild("ProximityPrompt", true)
+												if pp and rootPart then
+													-- Teleport to crate
+													local cratePos = crate:GetPivot().Position
+													rootPart.CFrame = CFrame.new(cratePos + Vector3.new(0, 5, 0))
+													task.wait(0.3)
+													
+													-- Fire proximity prompt to deposit
+													fireproximityprompt(pp)
+													print("[AUTO ROB] Deposited items!")
+													notify("Items Deposited!")
+													task.wait(1)
+													break
+												end
+											end
+										end
+									end
+								end
+								
+								-- Now rob the item
+								local pp = data.prompt
+								local parent = data.parent
+								
+								if pp.Enabled and rootPart then
+									-- Teleport to loot
+									local targetPos
+									if parent:IsA("BasePart") then
+										targetPos = parent.Position
+									elseif parent:IsA("Model") and parent.PrimaryPart then
+										targetPos = parent:GetPivot().Position
+									elseif parent:IsA("Model") then
+										local partInModel = parent:FindFirstChildWhichIsA("BasePart")
+										if partInModel then
+											targetPos = partInModel.Position
+										end
+									end
+									
+									if targetPos then
+										-- Teleport close to item
+										rootPart.CFrame = CFrame.new(targetPos + Vector3.new(0, 3, 0))
+										task.wait(0.2) -- Wait for teleport
+										
+										-- Fire proximity prompt
+										fireproximityprompt(pp)
+										print("[AUTO ROB] Robbed:", parent.Name)
+										itemsRobbed = itemsRobbed + 1
+										task.wait(0.3) -- Wait between robs
+									end
+								end
+							end
+							
+							-- After robbing heist, make final deposit
+							if itemsRobbed > 0 and rootPart then
+								print("[AUTO ROB] Heist complete! Final deposit...")
+								notify("Heist Complete! Final Deposit...")
+								
+								local dropLocations = workspace:FindFirstChild("DropLocations")
+								if dropLocations then
+									for _, crate in pairs(dropLocations:GetChildren()) do
+										if crate:IsA("Model") and crate.Name == "ToolCrate" then
+											local pp = crate:FindFirstChild("ProximityPrompt", true)
+											if pp and rootPart then
+												local cratePos = crate:GetPivot().Position
+												rootPart.CFrame = CFrame.new(cratePos + Vector3.new(0, 5, 0))
+												task.wait(0.3)
+												fireproximityprompt(pp)
+												print("[AUTO ROB] Final deposit done!")
+												task.wait(1)
+												break
+											end
+										end
+									end
+								end
+							end
+							
+							task.wait(2) -- Wait before next heist
+						end
+					end
+					
+					notify("Auto Rob cycle complete! Restarting...")
+					task.wait(5) -- Wait before restart
+				end)
+			end
+		end)
+	else
+		notify("Auto Rob: DISABLED")
+	end
+end)
+
+-- 25. INSTANT COMPLETE HEIST (Try to bypass minigames)
+createButton("InstantHeist", "⚡ Instant Complete Active Heist", function()
+	notify("Attempting to bypass heist minigames...")
+	
+	pcall(function()
+		-- Try to fire bank minigame completion
+		if RemoteEvents.BankMinigame then
+			RemoteEvents.BankMinigame:FireServer("complete")
+			RemoteEvents.BankMinigame:FireServer(true)
+			RemoteEvents.BankMinigame:FireServer("success")
+		end
+		
+		-- Try to open vault door
+		if RemoteEvents.VaultDoor then
+			RemoteEvents.VaultDoor:FireServer("open")
+			RemoteEvents.VaultDoor:FireServer(true)
+		end
+		
+		-- Try to open all security doors
+		if RemoteEvents.SecurityDoor then
+			RemoteEvents.SecurityDoor:FireServer(true)
+		end
+		
+		if RemoteEvents.SecurityDoors then
+			RemoteEvents.SecurityDoors:FireServer(true)
+		end
+		
+		if RemoteEvents.DoorOpener then
+			for _, door in pairs(workspace:GetDescendants()) do
+				if door:IsA("Model") and door.Name:match("Door") then
+					RemoteEvents.DoorOpener:FireServer(door)
+				end
+			end
+		end
+	end)
+	
+	notify("Heist bypass attempts sent!")
+end)
+
+-- 26. SPAWN ALL VEHICLES (SERVER-SIDE)
+createButton("SpawnAllVehicles", "🚗 Spawn All Vehicles", function()
+	local vehicles = ReplicatedStorage:FindFirstChild("Vehicles") and ReplicatedStorage.Vehicles:FindFirstChild("Models")
+	if vehicles then
+		local spawned = 0
+		for _, vehicle in pairs(vehicles:GetChildren()) do
+			if vehicle:IsA("Model") then
+				pcall(function()
+					-- Try to use VehicleSpawn remote
+					if RemoteEvents.VehicleSpawn then
+						RemoteEvents.VehicleSpawn:FireServer(vehicle.Name)
+					end
+					
+					-- Fallback: clone and place
+					local clone = vehicle:Clone()
+					clone.Parent = workspace
+					if rootPart then
+						local offset = Vector3.new(spawned * 10, 0, 0)
+						clone:SetPrimaryPartCFrame(rootPart.CFrame + rootPart.CFrame.RightVector * (spawned * 10))
+					end
+					spawned = spawned + 1
+				end)
+			end
+		end
+		notify("Spawned " .. spawned .. " vehicles!")
+	end
+end)
+
+-- 27. UNLOCK ALL DOORS (SERVER-SIDE)
+createButton("UnlockDoors", "🔓 Unlock All Doors", function()
+	local unlocked = 0
+	for _, door in pairs(workspace:GetDescendants()) do
+		if door:IsA("Model") and (door.Name:match("Door") or door.Name:match("Gate")) then
+			pcall(function()
+				-- Try to fire door remotes
+				if RemoteEvents.SecurityDoor then
+					RemoteEvents.SecurityDoor:FireServer(door)
+				end
+				if RemoteEvents.AskForDoor then
+					RemoteEvents.AskForDoor:FireServer(door)
+				end
+				if RemoteEvents.DoorOpener then
+					RemoteEvents.DoorOpener:FireServer(door)
+				end
+				
+				-- Try to open with ProximityPrompt
+				if door:FindFirstChild("ProximityPrompt", true) then
+					for _, pp in pairs(door:GetDescendants()) do
+						if pp:IsA("ProximityPrompt") and pp.Enabled then
+							fireproximityprompt(pp)
+							unlocked = unlocked + 1
+						end
+					end
+				end
+			end)
+		end
+	end
+	notify("Attempted to unlock " .. unlocked .. " doors")
+end)
+
+-- 28. FIRE ALL PROXIMITY PROMPTS (SERVER-SIDE)
+createButton("FireAllPP", "🎯 Fire All Proximity Prompts", function()
+	local fired = 0
+	for _, pp in pairs(workspace:GetDescendants()) do
+		if pp:IsA("ProximityPrompt") and pp.Enabled then
+			pcall(function()
+				fireproximityprompt(pp)
+				fired = fired + 1
+			end)
+		end
+	end
+	notify("Fired " .. fired .. " proximity prompts!")
+end)
+
+-- 29. BYPASS SECURITY CAMERAS
+createButton("BypassCameras", "📹 Disable Security Cameras", function()
+	local disabled = 0
+	for _, camera in pairs(workspace:GetDescendants()) do
+		if camera.Name:match("Camera") and camera:IsA("Model") then
+			pcall(function()
+				-- Disable camera scripts
+				for _, script in pairs(camera:GetDescendants()) do
+					if script:IsA("Script") or script:IsA("LocalScript") then
+						script.Enabled = false
+						disabled = disabled + 1
+					end
+				end
+				
+				-- Destroy camera lasers
+				if camera:FindFirstChild("CameraLaser") then
+					camera.CameraLaser:Destroy()
+				end
+			end)
+		end
+	end
+	notify("Disabled " .. disabled .. " security systems")
+end)
+
+-- 30. COLLECT ALL COLLECTIBLES
+createButton("CollectAll", "🎁 Collect All Collectibles", function()
+	local collected = 0
+	-- Collect all Collectibles folder items
+	for _, collectible in pairs(workspace:FindFirstChild("Collectibles") and workspace.Collectibles:GetChildren() or {}) do
+		pcall(function()
+			if collectible:IsA("Model") and collectible:FindFirstChild("Hitbox") then
+				firetouchinterest(rootPart, collectible.Hitbox, 0)
+				wait(0.05)
+				firetouchinterest(rootPart, collectible.Hitbox, 1)
+				collected = collected + 1
+			end
+		end)
+	end
+	notify("Collected " .. collected .. " collectibles")
+end)
+
+-- 31. REMOVE ALL NPCs
+createButton("RemoveNPCs", "👮 Remove All NPCs", function()
+	local removed = 0
+	for _, npc in pairs(workspace:FindFirstChild("NPCs") and workspace.NPCs:GetChildren() or {}) do
+		pcall(function()
+			npc:Destroy()
+			removed = removed + 1
+		end)
+	end
+	notify("Removed " .. removed .. " NPCs")
+end)
+
+-- 32. GET FREE WEAPONS (IMPROVED)
+createButton("FreeWeapons", "🔫 Give All Weapons", function()
+	local given = 0
+	
+	-- Method 1: From ReplicatedStorage.Weapons
+	local weapons = ReplicatedStorage:FindFirstChild("Weapons")
+	if weapons then
+		for _, weapon in pairs(weapons:GetChildren()) do
+			if weapon:IsA("Tool") then
+				pcall(function()
+					local clone = weapon:Clone()
+					clone.Parent = player.Backpack
+					given = given + 1
+				end)
+			end
+		end
+	end
+	
+	-- Method 2: From ReplicatedStorage.WeaponDisplay
+	local weaponDisplay = ReplicatedStorage:FindFirstChild("WeaponDisplay")
+	if weaponDisplay then
+		for _, weapon in pairs(weaponDisplay:GetChildren()) do
+			if weapon:IsA("Tool") then
+				pcall(function()
+					local clone = weapon:Clone()
+					clone.Parent = player.Backpack
+					given = given + 1
+				end)
+			end
+		end
+	end
+	
+	-- Method 3: Search all tools in ReplicatedStorage
+	for _, item in pairs(ReplicatedStorage:GetDescendants()) do
+		if item:IsA("Tool") and item.Parent.Name:match("Weapon") then
+			pcall(function()
+				local clone = item:Clone()
+				clone.Parent = player.Backpack
+				given = given + 1
+			end)
+		end
+	end
+	
+	notify("Added " .. given .. " weapons to backpack!")
+	
+	-- Also print to console
+	print("[WEAPONS] Total weapons given:", given)
+	print("[WEAPONS] Check your backpack!")
+end)
+
+-- 33. DEBUG: Show Stats
+createButton("DebugStats", "🔍 Debug: Show Current Stats", function()
+	print("=== DEBUG INFO ===")
+	print("Player:", player.Name)
+	print("Character:", character and character.Name or "nil")
+	print("Root Part:", rootPart and rootPart.Name or "nil")
+	
+	-- Check XP Orbs
+	local currentStuff = workspace:FindFirstChild("CurrentStuff")
+	if currentStuff then
+		local xpOrbs = currentStuff:FindFirstChild("CurrentXPOrbs")
+		if xpOrbs then
+			print("XP Orbs in workspace:", #xpOrbs:GetChildren())
+		end
+	end
+	
+	-- Check Heists
+	local heists = workspace:FindFirstChild("Heists")
+	if heists then
+		print("Heists folder found!")
+		for _, heist in pairs(heists:GetChildren()) do
+			local ppCount = 0
+			for _, pp in pairs(heist:GetDescendants()) do
+				if pp:IsA("ProximityPrompt") then
+					ppCount = ppCount + 1
+				end
+			end
+			print("  -", heist.Name, "ProximityPrompts:", ppCount)
+		end
+	end
+	
+	-- Check Auto States
+	print("Auto Collect XP:", exploitStates.autoCollectXP)
+	print("Auto Farm Money:", exploitStates.autoFarm)
+	print("Auto Rob:", exploitStates.autoRob)
+	
+	notify("Debug info printed to console (F9)")
+end)
+
+-- Dragging functionality
+local dragging
+local dragInput
+local dragStart
+local startPos
+
+local function update(input)
+	local delta = input.Position - dragStart
+	mainFrame.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+end
+
+title.InputBegan:Connect(function(input)
+	if input.UserInputType == Enum.UserInputType.MouseButton1 then
+		dragging = true
+		dragStart = input.Position
+		startPos = mainFrame.Position
+		
+		input.Changed:Connect(function()
+			if input.UserInputState == Enum.UserInputState.End then
+				dragging = false
+			end
+		end)
+	end
+end)
+
+title.InputChanged:Connect(function(input)
+	if input.UserInputType == Enum.UserInputType.MouseMovement then
+		dragInput = input
+	end
+end)
+
+UserInputService.InputChanged:Connect(function(input)
+	if input == dragInput and dragging then
+		update(input)
+	end
+end)
+
+-- Close button
+closeBtn.MouseButton1Click:Connect(function()
+	mainFrame.Visible = not mainFrame.Visible
+end)
+
+-- Toggle with Right Shift
+UserInputService.InputBegan:Connect(function(input)
+	if input.KeyCode == Enum.KeyCode.RightShift then
+		mainFrame.Visible = not mainFrame.Visible
+	end
+end)
+
+-- Parent to PlayerGui or CoreGui
+if gethui then
+	screenGui.Parent = gethui()
+elseif syn and syn.protect_gui then
+	syn.protect_gui(screenGui)
+	screenGui.Parent = game.CoreGui
+else
+	screenGui.Parent = game.CoreGui
+end
+
+notify("Exploit Test Menu Loaded! Press RIGHT SHIFT to toggle")
+print("[EXPLOIT TEST MENU] Loaded successfully")
+print("[INFO] Press RIGHT SHIFT to open/close menu")
+print("[WARNING] This is for testing purposes only!")
