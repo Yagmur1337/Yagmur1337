@@ -50,6 +50,118 @@ local RemoteEvents = {
 	DoorOpener = ReplicatedStorage:FindFirstChild("DoorOpenerEvent"),
 }
 
+-- ============================================
+-- CUSTOM FIREPROXIMITYPROMPT (DELTA COMPATIBLE)
+-- ============================================
+-- CUSTOM FIREPROXIMITYPROMPT (DELTA COMPATIBLE)
+-- ============================================
+local function customFireProximityPrompt(prompt, breakMode)
+	if not prompt or not prompt:IsA("ProximityPrompt") then
+		warn("[FIRE PP] Invalid ProximityPrompt!")
+		return false
+	end
+	
+	local holdDuration = prompt.HoldDuration or 0
+	breakMode = breakMode or false  -- true = multiple quick hits (breaking), false = single hold (collecting)
+	
+	print(string.format("[FIRE PP] Prompt: %s, Hold: %.2fs, BreakMode: %s", prompt.Name or "Unknown", holdDuration, tostring(breakMode)))
+	
+	-- Method 1: getconnections (BEST for Delta)
+	if getconnections then
+		local success = pcall(function()
+			if breakMode then
+				-- BREAKING MODE: Quick successive hits (for cash registers, vents)
+				for hit = 1, 5 do
+					-- Just fire Triggered quickly
+					local triggered = getconnections(prompt.Triggered)
+					if triggered then
+						for _, conn in pairs(triggered) do
+							if conn and conn.Function then
+								pcall(function() conn:Fire() end)
+							end
+						end
+					end
+					
+					task.wait(0.12)  -- Short delay between hits
+					
+					-- Check if it broke (prompt disabled)
+					if not prompt.Enabled then
+						print(string.format("[FIRE PP] ✅ Broken after %d hits!", hit))
+						return
+					end
+				end
+				print("[FIRE PP] ✅ Breaking complete (5 hits)")
+			else
+				-- COLLECTING MODE: Single hold (TV, CashPile, etc.)
+				-- Start holding
+				local holdBegan = getconnections(prompt.PromptButtonHoldBegan)
+				if holdBegan then
+					for _, conn in pairs(holdBegan) do
+						if conn and conn.Function then
+							pcall(function() conn:Fire() end)
+						end
+					end
+				end
+				
+				-- Hold for the duration
+				local totalHold = math.max(holdDuration, 0.3) + 0.15
+				task.wait(totalHold)
+				
+				-- Trigger the action
+				local triggered = getconnections(prompt.Triggered)
+				if triggered then
+					for _, conn in pairs(triggered) do
+						if conn and conn.Function then
+							pcall(function() conn:Fire() end)
+						end
+					end
+				end
+				
+				task.wait(0.05)
+				
+				-- Release hold
+				local holdEnded = getconnections(prompt.PromptButtonHoldEnded)
+				if holdEnded then
+					for _, conn in pairs(holdEnded) do
+						if conn and conn.Function then
+							pcall(function() conn:Fire() end)
+						end
+					end
+				end
+				
+				print(string.format("[FIRE PP] ✅ Single hold complete (%.2fs)", totalHold))
+			end
+		end)
+		
+		if success then return true end
+	end
+	
+	-- Method 2: fireproximityprompt (Synapse, Script-Ware)
+	if fireproximityprompt then
+		local success = pcall(function()
+			if breakMode then
+				for i = 1, 5 do
+					fireproximityprompt(prompt)
+					task.wait(0.12)
+					if not prompt.Enabled then break end
+				end
+			else
+				fireproximityprompt(prompt)
+				task.wait(math.max(holdDuration, 0.3))
+			end
+			print("[FIRE PP] ✅ fireproximityprompt success")
+		end)
+		
+		if success then return true end
+	end
+	
+	warn("[FIRE PP] ❌ All methods failed!")
+	return false
+end
+	warn("[FIRE PP] ❌ All methods failed!")
+	return false
+end
+
 -- Exploit States
 local exploitStates = {
 	godMode = false,
@@ -849,7 +961,7 @@ local autoMapItemsBtn = createToggleButton("AutoMapItems", "💸 Auto Collect Ma
 									
 									-- Try ProximityPrompt first
 									if pp and pp.Enabled then
-										fireproximityprompt(pp)
+										customFireProximityPrompt(pp)
 										print("[MAP ITEMS] Collected via PP:", item.Name)
 									end
 									
@@ -974,7 +1086,7 @@ local autoCashPileBtn = createToggleButton("AutoCashPile", "💰 Auto CashPile C
 						task.wait(0.3)
 						
 						-- Fire the ProximityPrompt
-						fireproximityprompt(pp)
+						customFireProximityPrompt(pp)
 						collected = collected + 1
 						print(string.format("[CASHPILE] (%d/%d) Collected!", collected, #availableCashPiles))
 						
@@ -1057,7 +1169,7 @@ local autoBankRobBtn = createToggleButton("AutoBankRob", "🏦 Auto Bank Heist (
 								local computerPos = bankComputer:GetPivot().Position
 								rootPart.CFrame = CFrame.new(computerPos + Vector3.new(0, 3, 0))
 								task.wait(0.5)
-								fireproximityprompt(computerPP)
+								customFireProximityPrompt(computerPP)
 								print("[BANK] Computer hack started!")
 								
 								-- Auto-click minigame buttons
@@ -1273,7 +1385,7 @@ local autoBankRobBtn = createToggleButton("AutoBankRob", "🏦 Auto Bank Heist (
 											rootPart.CFrame = CFrame.new(cratePos + Vector3.new(0, 5, 0))
 											print("[BANK]   Teleported to ToolCrate")
 											task.wait(0.3)
-											fireproximityprompt(pp)
+											customFireProximityPrompt(pp)
 											print("[BANK]   Deposited!")
 											task.wait(1)
 											break
@@ -1318,7 +1430,7 @@ local autoBankRobBtn = createToggleButton("AutoBankRob", "🏦 Auto Bank Heist (
 									task.wait(0.2)
 									
 									print("[BANK]   Firing ProximityPrompt...")
-									fireproximityprompt(pp)
+									customFireProximityPrompt(pp)
 									robbed = robbed + 1
 									print(string.format("[BANK]   ✅ SUCCESS! Robbed %d/%d", robbed, #vaultLoot))
 									task.wait(0.3)
@@ -1347,7 +1459,7 @@ local autoBankRobBtn = createToggleButton("AutoBankRob", "🏦 Auto Bank Heist (
 										local cratePos = crate:GetPivot().Position
 										rootPart.CFrame = CFrame.new(cratePos + Vector3.new(0, 5, 0))
 										task.wait(0.3)
-										fireproximityprompt(pp)
+										customFireProximityPrompt(pp)
 										task.wait(1)
 										break
 									end
@@ -1405,9 +1517,7 @@ local autoCoffeeShopBtn = createToggleButton("AutoCoffeeShop", "☕ Auto Coffee 
 						return
 					end
 					
-					print("[COFFEE] === STARTING COFFEE SHOP HEIST ===")
-					
-					-- Find CashRegister with ProximityPrompt
+					-- CHECK IF HEIST IS OPEN
 					local mechanics = coffeeShop:FindFirstChild("Mechanics")
 					if mechanics then
 						local register = mechanics:FindFirstChild("CashRegister")
@@ -1417,23 +1527,82 @@ local autoCoffeeShopBtn = createToggleButton("AutoCoffeeShop", "☕ Auto Coffee 
 								local attachment = body1:FindFirstChild("Attachment")
 								if attachment then
 									local pp = attachment:FindFirstChild("ProximityPrompt")
-									if pp and rootPart then
-										local pos = body1.Position
-										print(string.format("[COFFEE] Teleporting to register: %.0f, %.0f, %.0f", pos.X, pos.Y, pos.Z))
-										rootPart.CFrame = CFrame.new(pos + Vector3.new(0, 3, 0))
-										task.wait(0.3)
-										
-										print("[COFFEE] Robbing cash register...")
-										fireproximityprompt(pp)
-										task.wait(0.5)
-										print("[COFFEE] ✅ Cash register robbed!")
+									if pp and not pp.Enabled then
+										print("[COFFEE] ⏳ Coffee Shop is CLOSED (already robbed), waiting...")
+										task.wait(10)
+										return
 									end
 								end
 							end
 						end
 					end
 					
-					-- Check inventory and deposit if needed
+					print("[COFFEE] === STARTING COFFEE SHOP HEIST ===")
+					
+					-- Step 1: Rob the CashRegister (needs 5 presses to break)
+					if mechanics then
+						local register = mechanics:FindFirstChild("CashRegister")
+						if register then
+							local body1 = register:FindFirstChild("Body1")
+							if body1 then
+								local attachment = body1:FindFirstChild("Attachment")
+								if attachment then
+									local pp = attachment:FindFirstChild("ProximityPrompt")
+									if pp and pp.Enabled and rootPart then
+										local pos = body1.Position
+										print(string.format("[COFFEE] Teleporting to register: %.0f, %.0f, %.0f", pos.X, pos.Y, pos.Z))
+										rootPart.CFrame = CFrame.new(pos + Vector3.new(0, 3, 0))
+										task.wait(0.5)
+										
+										print("[COFFEE] Breaking cash register...")
+										customFireProximityPrompt(pp, true)
+										
+										task.wait(1)
+									end
+								end
+							end
+						end
+					end
+					
+					-- Step 2: Collect dropped CashPiles from the register
+					print("[COFFEE] Collecting dropped cash...")
+					local collectibles = workspace:FindFirstChild("Collectibles")
+					if collectibles then
+						-- Find CashPiles near coffee shop
+						local coffeeShopPos = coffeeShop:GetPivot().Position
+						local collected = 0
+						
+						for _, item in pairs(collectibles:GetChildren()) do
+							if not exploitStates.autoCoffeeShop then break end
+							if not rootPart then break end
+							
+							if item:IsA("Model") and item.Name == "CashPile" then
+								local pp = item:FindFirstChild("ProximityPrompt", true)
+								if pp and pp.Enabled then
+									-- Check if it's near coffee shop (within 100 studs)
+									local itemPos = item:GetPivot().Position
+									local distance = (itemPos - coffeeShopPos).Magnitude
+									
+									if distance < 100 then
+										print(string.format("[COFFEE] Teleporting to CashPile: %.0f, %.0f, %.0f", itemPos.X, itemPos.Y, itemPos.Z))
+										rootPart.CFrame = CFrame.new(itemPos + Vector3.new(0, 3, 0))
+										task.wait(0.3)
+										
+										customFireProximityPrompt(pp, 3)
+										collected = collected + 1
+										print(string.format("[COFFEE] ✅ Collected CashPile %d", collected))
+										task.wait(0.3)
+									end
+								end
+							end
+						end
+						
+						if collected > 0 then
+							print(string.format("[COFFEE] Collected %d CashPiles!", collected))
+						end
+					end
+					
+					-- Step 3: Check inventory and deposit if needed
 					local backpackCount = #player.Backpack:GetChildren()
 					local charCount = 0
 					if character then
@@ -1445,7 +1614,7 @@ local autoCoffeeShopBtn = createToggleButton("AutoCoffeeShop", "☕ Auto Coffee 
 					end
 					local totalItems = backpackCount + charCount
 					
-					if totalItems >= 8 and rootPart then
+					if totalItems >= 5 and rootPart then
 						print("[COFFEE] Inventory has", totalItems, "items, depositing...")
 						local dropLocations = workspace:FindFirstChild("DropLocations")
 						if dropLocations then
@@ -1456,7 +1625,7 @@ local autoCoffeeShopBtn = createToggleButton("AutoCoffeeShop", "☕ Auto Coffee 
 										local cratePos = crate:GetPivot().Position
 										rootPart.CFrame = CFrame.new(cratePos + Vector3.new(0, 5, 0))
 										task.wait(0.3)
-										fireproximityprompt(pp)
+										customFireProximityPrompt(pp)
 										task.wait(1)
 										print("[COFFEE] ✅ Deposited!")
 										break
@@ -1511,6 +1680,14 @@ local autoGasStationBtn = createToggleButton("AutoGasStation", "⛽ Auto Gas Sta
 						return
 					end
 					
+					-- CHECK IF HEIST IS OPEN
+					local currentBarrels = gasStation:FindFirstChild("CurrentMetalBarrels")
+					if currentBarrels and #currentBarrels:GetChildren() == 0 then
+						print("[GAS] ⏳ Gas Station is CLOSED (no barrels spawned), waiting...")
+						task.wait(10)
+						return
+					end
+					
 					print("[GAS] === STARTING GAS STATION HEIST ===")
 					
 					-- Find metal barrels in CurrentMetalBarrels
@@ -1536,7 +1713,7 @@ local autoGasStationBtn = createToggleButton("AutoGasStation", "⛽ Auto Gas Sta
 									rootPart.CFrame = CFrame.new(targetPos + Vector3.new(0, 3, 0))
 									task.wait(0.2)
 									
-									fireproximityprompt(pp)
+									customFireProximityPrompt(pp)
 									robbed = robbed + 1
 									print(string.format("[GAS] ✅ Barrel %d robbed!", robbed))
 									task.wait(0.3)
@@ -1557,7 +1734,7 @@ local autoGasStationBtn = createToggleButton("AutoGasStation", "⛽ Auto Gas Sta
 					end
 					local totalItems = backpackCount + charCount
 					
-					if totalItems >= 8 and rootPart then
+					if totalItems >= 5 and rootPart then
 						print("[GAS] Inventory has", totalItems, "items, depositing...")
 						local dropLocations = workspace:FindFirstChild("DropLocations")
 						if dropLocations then
@@ -1568,7 +1745,7 @@ local autoGasStationBtn = createToggleButton("AutoGasStation", "⛽ Auto Gas Sta
 										local cratePos = crate:GetPivot().Position
 										rootPart.CFrame = CFrame.new(cratePos + Vector3.new(0, 5, 0))
 										task.wait(0.3)
-										fireproximityprompt(pp)
+										customFireProximityPrompt(pp)
 										task.wait(1)
 										print("[GAS] ✅ Deposited!")
 										break
@@ -1623,6 +1800,32 @@ local autoApartmentBtn = createToggleButton("AutoApartment", "🏠 Auto Apartmen
 						return
 					end
 					
+					-- CHECK IF HEIST IS OPEN
+					local currentStealable = apartment:FindFirstChild("CurrentStealable")
+					if currentStealable and #currentStealable:GetChildren() == 0 then
+						print("[APARTMENT] ⏳ Apartment is CLOSED (no items spawned), waiting...")
+						task.wait(10)
+						return
+					end
+					
+					-- Check if any ProximityPrompts are enabled
+					local hasEnabledPrompts = false
+					if currentStealable then
+						for _, item in pairs(currentStealable:GetChildren()) do
+							local pp = item:FindFirstChild("ProximityPrompt", true)
+							if pp and pp.Enabled then
+								hasEnabledPrompts = true
+								break
+							end
+						end
+					end
+					
+					if not hasEnabledPrompts then
+						print("[APARTMENT] ⏳ Apartment is CLOSED (already robbed), waiting...")
+						task.wait(10)
+						return
+					end
+					
 					print("[APARTMENT] === STARTING APARTMENT HEIST ===")
 					
 					-- Find stealable items in CurrentStealable
@@ -1648,7 +1851,7 @@ local autoApartmentBtn = createToggleButton("AutoApartment", "🏠 Auto Apartmen
 									rootPart.CFrame = CFrame.new(targetPos + Vector3.new(0, 3, 0))
 									task.wait(0.2)
 									
-									fireproximityprompt(pp)
+									customFireProximityPrompt(pp)
 									robbed = robbed + 1
 									print(string.format("[APARTMENT] ✅ Stole %s!", item.Name))
 									task.wait(0.3)
@@ -1669,7 +1872,7 @@ local autoApartmentBtn = createToggleButton("AutoApartment", "🏠 Auto Apartmen
 					end
 					local totalItems = backpackCount + charCount
 					
-					if totalItems >= 8 and rootPart then
+					if totalItems >= 5 and rootPart then
 						print("[APARTMENT] Inventory has", totalItems, "items, depositing...")
 						local dropLocations = workspace:FindFirstChild("DropLocations")
 						if dropLocations then
@@ -1680,7 +1883,7 @@ local autoApartmentBtn = createToggleButton("AutoApartment", "🏠 Auto Apartmen
 										local cratePos = crate:GetPivot().Position
 										rootPart.CFrame = CFrame.new(cratePos + Vector3.new(0, 5, 0))
 										task.wait(0.3)
-										fireproximityprompt(pp)
+										customFireProximityPrompt(pp)
 										task.wait(1)
 										print("[APARTMENT] ✅ Deposited!")
 										break
@@ -1735,6 +1938,24 @@ local autoJewelryBtn = createToggleButton("AutoJewelry", "💎 Auto Jewelry", fa
 						return
 					end
 					
+					-- CHECK IF HEIST IS OPEN (check if any enabled prompts exist)
+					local hasEnabledPrompts = false
+					for _, item in pairs(jewelry:GetDescendants()) do
+						if item:IsA("ProximityPrompt") and item.Enabled then
+							local parent = item.Parent
+							if parent and not parent.Name:match("Elevator") and not parent.Name:match("Button") and not parent.Name:match("Vent") then
+								hasEnabledPrompts = true
+								break
+							end
+						end
+					end
+					
+					if not hasEnabledPrompts then
+						print("[JEWELRY] ⏳ Jewelry is CLOSED (already robbed), waiting...")
+						task.wait(10)
+						return
+					end
+					
 					print("[JEWELRY] === STARTING JEWELRY HEIST ===")
 					
 					-- Find jewelry items with ProximityPrompts (display cases, etc.)
@@ -1759,7 +1980,7 @@ local autoJewelryBtn = createToggleButton("AutoJewelry", "💎 Auto Jewelry", fa
 									rootPart.CFrame = CFrame.new(targetPos + Vector3.new(0, 3, 0))
 									task.wait(0.2)
 									
-									fireproximityprompt(item)
+									customFireProximityPrompt(item)
 									robbed = robbed + 1
 									print(string.format("[JEWELRY] ✅ Stole %s!", parent.Name))
 									task.wait(0.3)
@@ -1776,7 +1997,7 @@ local autoJewelryBtn = createToggleButton("AutoJewelry", "💎 Auto Jewelry", fa
 									end
 									local totalItems = backpackCount + charCount
 									
-									if totalItems >= 8 then
+									if totalItems >= 5 then
 										print("[JEWELRY] Inventory full, depositing...")
 										local dropLocations = workspace:FindFirstChild("DropLocations")
 										if dropLocations then
@@ -1787,7 +2008,7 @@ local autoJewelryBtn = createToggleButton("AutoJewelry", "💎 Auto Jewelry", fa
 														local cratePos = crate:GetPivot().Position
 														rootPart.CFrame = CFrame.new(cratePos + Vector3.new(0, 5, 0))
 														task.wait(0.3)
-														fireproximityprompt(pp)
+														customFireProximityPrompt(pp)
 														task.wait(1)
 														print("[JEWELRY] ✅ Deposited!")
 														break
@@ -1846,6 +2067,14 @@ local autoArcadeBtn = createToggleButton("AutoArcade", "🎮 Auto Arcade", false
 						return
 					end
 					
+					-- CHECK IF HEIST IS OPEN
+					local currentRooms = arcade:FindFirstChild("CurrentRooms")
+					if currentRooms and #currentRooms:GetChildren() == 0 then
+						print("[ARCADE] ⏳ Arcade is CLOSED (no rooms spawned), waiting...")
+						task.wait(10)
+						return
+					end
+					
 					print("[ARCADE] === STARTING ARCADE HEIST ===")
 					
 					-- Find arcade items in CurrentRooms
@@ -1878,7 +2107,7 @@ local autoArcadeBtn = createToggleButton("AutoArcade", "🎮 Auto Arcade", false
 											rootPart.CFrame = CFrame.new(targetPos + Vector3.new(0, 3, 0))
 											task.wait(0.2)
 											
-											fireproximityprompt(item)
+											customFireProximityPrompt(item)
 											robbed = robbed + 1
 											print(string.format("[ARCADE] ✅ Collected %s!", parent.Name))
 											task.wait(0.3)
@@ -1895,7 +2124,7 @@ local autoArcadeBtn = createToggleButton("AutoArcade", "🎮 Auto Arcade", false
 											end
 											local totalItems = backpackCount + charCount
 											
-											if totalItems >= 8 then
+											if totalItems >= 5 then
 												print("[ARCADE] Inventory full, depositing...")
 												local dropLocations = workspace:FindFirstChild("DropLocations")
 												if dropLocations then
@@ -1906,7 +2135,7 @@ local autoArcadeBtn = createToggleButton("AutoArcade", "🎮 Auto Arcade", false
 																local cratePos = crate:GetPivot().Position
 																rootPart.CFrame = CFrame.new(cratePos + Vector3.new(0, 5, 0))
 																task.wait(0.3)
-																fireproximityprompt(pp)
+																customFireProximityPrompt(pp)
 																task.wait(1)
 																print("[ARCADE] ✅ Deposited!")
 																break
@@ -1967,6 +2196,21 @@ local autoAirShipBtn = createToggleButton("AutoAirShip", "🚁 Auto AirShip", fa
 						return
 					end
 					
+					-- CHECK IF HEIST IS OPEN (check if any enabled prompts exist)
+					local hasEnabledPrompts = false
+					for _, item in pairs(airShip:GetDescendants()) do
+						if item:IsA("ProximityPrompt") and item.Enabled then
+							hasEnabledPrompts = true
+							break
+						end
+					end
+					
+					if not hasEnabledPrompts then
+						print("[AIRSHIP] ⏳ AirShip is CLOSED (no loot available), waiting...")
+						task.wait(15)
+						return
+					end
+					
 					print("[AIRSHIP] === STARTING AIRSHIP HEIST ===")
 					print("[AIRSHIP] ⚠️ Note: AirShip moves, may be challenging!")
 					
@@ -1991,7 +2235,7 @@ local autoAirShipBtn = createToggleButton("AutoAirShip", "🚁 Auto AirShip", fa
 								rootPart.CFrame = CFrame.new(targetPos + Vector3.new(0, 5, 0))
 								task.wait(0.3)
 								
-								fireproximityprompt(item)
+								customFireProximityPrompt(item)
 								robbed = robbed + 1
 								print(string.format("[AIRSHIP] ✅ Collected %s!", parent.Name))
 								task.wait(0.3)
@@ -2008,7 +2252,7 @@ local autoAirShipBtn = createToggleButton("AutoAirShip", "🚁 Auto AirShip", fa
 								end
 								local totalItems = backpackCount + charCount
 								
-								if totalItems >= 8 then
+								if totalItems >= 5 then
 									print("[AIRSHIP] Inventory full, depositing...")
 									local dropLocations = workspace:FindFirstChild("DropLocations")
 									if dropLocations then
@@ -2019,7 +2263,7 @@ local autoAirShipBtn = createToggleButton("AutoAirShip", "🚁 Auto AirShip", fa
 													local cratePos = crate:GetPivot().Position
 													rootPart.CFrame = CFrame.new(cratePos + Vector3.new(0, 5, 0))
 													task.wait(0.3)
-													fireproximityprompt(pp)
+													customFireProximityPrompt(pp)
 													task.wait(1)
 													print("[AIRSHIP] ✅ Deposited!")
 													break
@@ -2139,7 +2383,7 @@ local autoRobBtn = createToggleButton("AutoRob", "🏦 Auto Rob + Deposit", fals
 													task.wait(0.3)
 													
 													-- Fire proximity prompt to deposit
-													fireproximityprompt(pp)
+													customFireProximityPrompt(pp)
 													print("[AUTO ROB] Deposited items!")
 													notify("Items Deposited!")
 													task.wait(1)
@@ -2174,7 +2418,7 @@ local autoRobBtn = createToggleButton("AutoRob", "🏦 Auto Rob + Deposit", fals
 										task.wait(0.2) -- Wait for teleport
 										
 										-- Fire proximity prompt
-										fireproximityprompt(pp)
+										customFireProximityPrompt(pp)
 										print("[AUTO ROB] Robbed:", parent.Name)
 										itemsRobbed = itemsRobbed + 1
 										task.wait(0.3) -- Wait between robs
@@ -2196,7 +2440,7 @@ local autoRobBtn = createToggleButton("AutoRob", "🏦 Auto Rob + Deposit", fals
 												local cratePos = crate:GetPivot().Position
 												rootPart.CFrame = CFrame.new(cratePos + Vector3.new(0, 5, 0))
 												task.wait(0.3)
-												fireproximityprompt(pp)
+												customFireProximityPrompt(pp)
 												print("[AUTO ROB] Final deposit done!")
 												task.wait(1)
 												break
@@ -2308,7 +2552,7 @@ createButton("UnlockDoors", "🔓 Unlock All Doors", function()
 				if door:FindFirstChild("ProximityPrompt", true) then
 					for _, pp in pairs(door:GetDescendants()) do
 						if pp:IsA("ProximityPrompt") and pp.Enabled then
-							fireproximityprompt(pp)
+							customFireProximityPrompt(pp)
 							unlocked = unlocked + 1
 						end
 					end
@@ -2325,7 +2569,7 @@ createButton("FireAllPP", "🎯 Fire All Proximity Prompts", function()
 	for _, pp in pairs(workspace:GetDescendants()) do
 		if pp:IsA("ProximityPrompt") and pp.Enabled then
 			pcall(function()
-				fireproximityprompt(pp)
+				customFireProximityPrompt(pp)
 				fired = fired + 1
 			end)
 		end
